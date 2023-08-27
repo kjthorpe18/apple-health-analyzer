@@ -10,7 +10,7 @@ def get_workouts(df, workout_type):
     return df[df["Type"] == workout_type]
 
 
-def plot_workouts(workouts):
+def plot_workouts_pie(workouts):
     labels = []
     slices = []
     for wo_type in workouts.Type.unique():
@@ -44,35 +44,35 @@ def main():
 
     plt.style.use("fivethirtyeight")
 
+    print("Extracting workout data...")
+
     # create element tree object
     tree = ET.parse('data/export.xml')
-
-    # for every health record, extract the attributes
     root = tree.getroot()
 
-    print("Extracting Workout data from export...\n")
-
+    # Extract workouts from other Apple Health data and create a DataFrame
     workout_list = [x.attrib for x in root.iter('Workout')]
-
     workout_data = pd.DataFrame(workout_list)
-    workout_data['workoutActivityType'] = workout_data['workoutActivityType'].str.replace('HKWorkoutActivityType', '')
-    workout_data = workout_data.rename({"workoutActivityType": "Type"}, axis=1)
 
+    # Clean up the names of the columns and workouts. Example: HKWorkoutActivityTypeRunning -> Running
+    workout_data.drop('device', axis=1, inplace=True)
+    workout_data['workoutActivityType'].replace('HKWorkoutActivityType','', inplace=True, regex=True)
+    workout_data.rename(columns={'workoutActivityType': 'Type'}, inplace=True)
+
+    # Apple Health data is stored in XML tags as strings.
+    # Rework strings to dates and numbers
     for col in ['creationDate', 'startDate', 'endDate']:
         workout_data[col] = pd.to_datetime(workout_data[col])
         workout_data['date'] = workout_data[col].dt.date
 
-    workout_data['duration'] = pd.to_numeric(workout_data['duration'])
-    workout_data['totalEnergyBurned'] = pd.to_numeric(workout_data['totalEnergyBurned'])
-    workout_data['totalDistance'] = pd.to_numeric(workout_data['totalDistance'])
-
-    workout_data.drop('device', axis=1, inplace=True)
-    workout_data.to_csv('out/apple_health_analyzer.csv')
+    workout_data[['duration', 'totalEnergyBurned', 'totalDistance']].apply(pd.to_numeric, errors='coerce', axis=1)
 
     print("Number of records: " + str(workout_data.shape[0]))
 
+    # Output processed data as CSV
+    workout_data.to_csv('out/workouts.csv')
     durations = workout_data.groupby('date', as_index=False)['duration'].sum()
-    durations.to_csv('out/aggregated_durations.csv')
+    durations.to_csv('out/aggregated_workout_durations_per_day.csv')
 
 if __name__ == "__main__":
     main()
