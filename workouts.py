@@ -10,7 +10,7 @@ def get_workouts(df, workout_type):
     return df[df["Type"] == workout_type]
 
 
-def plot_workouts(workouts):
+def plot_workouts_pie(workouts):
     labels = []
     slices = []
     for wo_type in workouts.Type.unique():
@@ -23,52 +23,66 @@ def plot_workouts(workouts):
         def my_autopct(pct):
             total = sum(values)
             val = int(round(pct * total / 100.0))
-            return '{p:.2f}%  ({v:d})'.format(p=pct, v=val)
+            return "{p:.2f}%  ({v:d})".format(p=pct, v=val)
 
         return my_autopct
 
     plt.figure(figsize=(10, 10))
-    plt.pie(slices, labels=labels, shadow=False,
-            startangle=90, autopct=make_autopct(slices),
-            wedgeprops={'edgecolor': 'black'})
+    plt.pie(
+        slices,
+        labels=labels,
+        shadow=False,
+        startangle=90,
+        autopct=make_autopct(slices),
+        wedgeprops={"edgecolor": "black"},
+    )
 
     plt.title("Workouts")
     plt.tight_layout()
     plt.show()
 
 
-outdir = './dir'
-if not os.path.exists(outdir):
-    os.mkdir(outdir)
+def main():
+    outdir = "./dir"
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
 
-plt.style.use("fivethirtyeight")
+    plt.style.use("fivethirtyeight")
 
-# create element tree object
-tree = ET.parse('data/export.xml')
+    print("Extracting workout data...")
 
-# for every health record, extract the attributes
-root = tree.getroot()
+    # create element tree object
+    tree = ET.parse("data/export.xml")
+    root = tree.getroot()
 
-print("Extracting apple_health_analyzer...\n")
+    # Extract workouts from other Apple Health data and create a DataFrame
+    workout_list = [x.attrib for x in root.iter("Workout")]
+    workout_data = pd.DataFrame(workout_list)
 
-workout_list = [x.attrib for x in root.iter('Workout')]
+    # Clean up the names of the columns and workouts. Example: HKWorkoutActivityTypeRunning -> Running
+    workout_data.drop("device", axis=1, inplace=True)
+    workout_data["workoutActivityType"].replace(
+        "HKWorkoutActivityType", "", inplace=True, regex=True
+    )
+    workout_data.rename(columns={"workoutActivityType": "Type"}, inplace=True)
 
-workout_data = pd.DataFrame(workout_list)
-workout_data['workoutActivityType'] = workout_data['workoutActivityType'].str.replace('HKWorkoutActivityType', '')
-workout_data = workout_data.rename({"workoutActivityType": "Type"}, axis=1)
+    # Apple Health data is stored in XML tags as strings.
+    # Rework strings to dates and numbers
+    for col in ["creationDate", "startDate", "endDate"]:
+        workout_data[col] = pd.to_datetime(workout_data[col])
+        workout_data["date"] = workout_data[col].dt.date
 
-for col in ['creationDate', 'startDate', 'endDate']:
-    workout_data[col] = pd.to_datetime(workout_data[col])
-    workout_data['date'] = workout_data[col].dt.date
+    workout_data[["duration", "totalEnergyBurned", "totalDistance"]].apply(
+        pd.to_numeric, errors="coerce", axis=1
+    )
 
-workout_data['duration'] = pd.to_numeric(workout_data['duration'])
-workout_data['totalEnergyBurned'] = pd.to_numeric(workout_data['totalEnergyBurned'])
-workout_data['totalDistance'] = pd.to_numeric(workout_data['totalDistance'])
+    print("Number of records: " + str(workout_data.shape[0]))
 
-workout_data.drop('device', axis=1, inplace=True)
-workout_data.to_csv('out/apple_health_analyzer.csv')
+    # Output processed data as CSV
+    workout_data.to_csv("out/workouts.csv")
+    durations = workout_data.groupby("date", as_index=False)["duration"].sum()
+    durations.to_csv("out/aggregated_workout_durations_per_day.csv")
 
-print("Number of apple_health_analyzer: " + str(workout_data.shape[0]))
 
-durations = workout_data.groupby('date', as_index=False)['duration'].sum()
-durations.to_csv('out/aggregated_durations.csv')
+if __name__ == "__main__":
+    main()

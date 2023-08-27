@@ -1,4 +1,4 @@
 .idea/
-data/*
+data/export.xml
 out/
 .DS_Store

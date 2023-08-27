@@ -8,10 +8,14 @@ Scripts to extract records from an Apple Health data export, converting them to 
 3. Extract the export files, and save the `export.xml` file. This contains all workouts, step counts, and other health data
 
 ### To Run
+1. Install dependencies:
+   ```
+   pip3 install -r requirements.txt
+   ```
 1. Place health data `export.xml` file into the `data/` directory in this project
-2. Run the script(s):
+1. Run the script(s):
    ```
    python3 workouts.py
    python3 stepcounts.py
    ```
-3. Resulting CSVs will be placed in the `out/` directory, and any charts will be displayed
+1. Resulting CSVs and charts will be placed in the `out/` directory.
